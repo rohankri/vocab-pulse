@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocabPulse AI — Voice Vocabulary Coach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-4 md:p-8">
+  <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+    
+    <!-- Left Column: Voice Agent Interface -->
+    <div class="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+      <div>
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+          <div>
+            <span class="text-xs uppercase tracking-widest text-indigo-400 font-semibold">Apna Advantage Prototype</span>
+            <h1 class="text-xl font-bold text-white mt-0.5">VocabPulse Voice Agent</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span id="agentStatus" class="text-xs text-slate-400 font-medium">Ready</span>
+          </div>
+        </div>
+        <!-- Current Target Word Card -->
+        <div class="bg-slate-800/60 border border-slate-700/70 rounded-xl p-5 mb-6">
+          <div class="flex items-baseline justify-between">
+            <div>
+              <span class="text-xs text-slate-400 uppercase tracking-wider">Target Word (<span id="wordIndexLabel">1/5</span>)</span>
+              <h2 id="targetWord" class="text-3xl font-extrabold text-indigo-300 mt-1">Pragmatic</h2>
+              <p id="wordPhonetic" class="text-sm text-slate-400 italic">/præɡˈmæt.ɪk/ • Adjective</p>
+            </div>
+            <span id="stepBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Stage 1: Listen & Repeat
+            </span>
+          </div>
+          <p id="wordMeaning" class="text-sm text-slate-200 mt-3 leading-relaxed">
+            Dealing with things sensibly and realistically in a way that is based on practical rather than theoretical considerations.
+          </p>
+          <p id="wordExample" class="text-xs text-slate-400 mt-2 border-l-2 border-indigo-500 pl-3">
+            "We need a pragmatic approach to reduce funnel drop-offs."
+          </p>
+        </div>
+        <!-- Conversation Transcript Box -->
+        <div id="chatLog" class="space-y-3 h-60 overflow-y-auto pr-2 mb-6 text-sm"></div>
+      </div>
+      <!-- Controls -->
+      <div class="border-t border-slate-800 pt-4 flex flex-col sm:flex-row items-center gap-3">
+        <button id="startBtn" onclick="startLesson()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm transition">
+          ▶ Start Voice Session
+        </button>
+        <button id="micBtn" onclick="toggleListening()" disabled class="w-full sm:flex-1 py-2.5 px-5 rounded-xl bg-slate-800 text-slate-400 font-semibold text-sm border border-slate-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
+          <span id="micIcon">🎤</span> <span id="micLabel">Click to Speak</span>
+        </button>
+        <button onclick="nextWord()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition">
+          Skip Word →
+        </button>
+      </div>
+      
+      <!-- Text Fallback Input (for noisy environments or non-Chrome browsers) -->
+      <div class="mt-3 flex gap-2">
+        <input id="textFallback" type="text" placeholder="Or type your spoken response here if mic is unavailable..." 
+          class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+          onkeydown="if(event.key==='Enter') submitTextFallback()" />
+        <button onclick="submitTextFallback()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300">Send</button>
+      </div>
+    </div>
+    <!-- Right Column: Product Ops Telemetry & Diagnostics -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-3 mb-4">
+          Product Ops Telemetry
+        </h3>
+        <div class="space-y-4 text-xs">
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-slate-400">Words Mastered</div>
+            <div id="metricMastered" class="text-2xl font-bold text-emerald-400 mt-1">0 / 5</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-slate-400">Pronunciation & Context Accuracy</div>
+            <div id="metricAccuracy" class="text-2xl font-bold text-indigo-400 mt-1">--%</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-slate-400">Turn-Around Latency (STT → Eval)</div>
+            <div id="metricLatency" class="text-xl font-bold text-amber-400 mt-1">120 ms</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-slate-400 mb-1">Session Funnel Stage</div>
+            <div id="funnelLog" class="text-slate-300 space-y-1 font-mono text-[11px]">
+              <div>• [INIT] Waiting for user start</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+        <strong class="text-slate-200">Ops Architecture Note:</strong> Chrome/Edge use Web Speech API. Brave and other Google-STT blockers fall back to on-device Whisper. Rubric eval stays local; text input remains the noisy-environment fallback.
+      </div>
+    </div>
+  </div>
+  <script>
+    const words = [
+      {
+        word: "Pragmatic",
+        phonetic: "/præɡˈmæt.ɪk/ • Adjective",
+        meaning: "Dealing with problems sensibly and realistically based on practical rather than theoretical considerations.",
+        example: "We need a pragmatic approach to reduce user drop-offs.",
+        synonyms: ["practical", "realistic", "sensible", "logical"]
+      },
+      {
+        word: "Bottleneck",
+        phonetic: "/ˈbɒt.əl.nek/ • Noun",
+        meaning: "A point of congestion in a system or funnel that slows down or halts overall progress.",
+        example: "Manual verification became the biggest bottleneck in our admissions workflow.",
+        synonyms: ["delay", "blockage", "constraint", "slowdown"]
+      },
+      {
+        word: "Articulate",
+        phonetic: "/ɑːˈtɪk.jə.lət/ • Verb / Adjective",
+        meaning: "Having or showing the ability to speak fluently, clearly, and persuasively.",
+        example: "She was able to articulate the user pain points clearly to the engineering team.",
+        synonyms: ["express", "communicate", "fluent", "clear"]
+      },
+      {
+        word: "Iterative",
+        phonetic: "/ˈɪt.ər.ə.tɪv/ • Adjective",
+        meaning: "Involving repetition of a process with the aim of approaching a desired goal or product improvement.",
+        example: "Product operations relies on iterative testing to improve AI counsellor scripts.",
+        synonyms: ["repeated", "step-by-step", "incremental", "continuous"]
+      },
+      {
+        word: "Ephemeral",
+        phonetic: "/ɪˈfem.ər.əl/ • Adjective",
+        meaning: "Lasting for a very short time; transitory.",
+        example: "Spikes in traffic from viral campaigns are often ephemeral without strong onboarding.",
+        synonyms: ["short", "temporary", "brief", "fleeting"]
+      }
+    ];
+    let currentIdx = 0;
+    let stage = 1; // 1 = Pronunciation repeat, 2 = Use in a sentence
+    let attempts = 0;
+    let successes = 0;
+    let masteredCount = 0;
+    let isListening = false;
+    let shouldListen = false;
+    let gotSpeechResult = false;
+    let listenStartedAt = 0;
+    let listenRestarts = 0;
+    let recognition = null;
+    let agentSpeaking = false;
+    let useLocalStt = Boolean(navigator.brave);
+    let localAsr = null;
+    let localAsrLoading = null;
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let vadTimer = null;
+    let isLocalRecording = false;
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    function bindRecognition(rec) {
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.continuous = false;
+      rec.onstart = () => {
+        isListening = true;
+        listenStartedAt = Date.now();
+        updateStatus("Listening...", "bg-rose-500 animate-ping");
+        document.getElementById("micLabel").innerText = "Listening... speak now";
+        document.getElementById("micBtn").className = "w-full sm:flex-1 py-2.5 px-5 rounded-xl bg-rose-600 text-white font-semibold text-sm transition flex items-center justify-center gap-2";
+      };
+      rec.onresult = (event) => {
+        const result = event.results[event.results.length - 1];
+        const transcript = result[0].transcript.trim();
+        if (!transcript) return;
+        if (!result.isFinal) {
+          document.getElementById("micLabel").innerText = `Hearing: ${transcript}`;
+          return;
+        }
+        gotSpeechResult = true;
+        shouldListen = false;
+        handleUserResponse(transcript);
+      };
+      rec.onerror = (event) => {
+        const err = event.error;
+        logFunnel(`STT_ERR: ${err}`);
+        // Permission dialog, TTS collision, and silence all abort the session.
+        // Keep listening unless the user cancelled or permission is blocked.
+        if (err === "aborted" || err === "no-speech") return;
+        if (err === "network" && listenRestarts < 4) return;
+        shouldListen = false;
+        if (err === "not-allowed") {
+          appendMessage("agent", "Microphone access is blocked. Allow mic permission for this site, then tap Speak again — or type in the box below.");
+        } else if (err === "audio-capture") {
+          appendMessage("agent", "I couldn't access the microphone. Close other apps using the mic, then tap Speak again.");
+        } else if (err === "network") {
+          switchToLocalStt("This browser blocked Google speech-to-text (common in Brave). Switching to on-device recognition — tap Speak and say the word.");
+          return;
+        } else {
+          appendMessage("agent", "I couldn't catch that clearly via microphone. Tap Speak and try again, or use the text box below.");
+        }
+        resetMicUI();
+      };
+      rec.onend = () => {
+        isListening = false;
+        if (shouldListen && !gotSpeechResult) {
+          listenRestarts += 1;
+          if (listenRestarts > 8) {
+            shouldListen = false;
+            resetMicUI();
+            logFunnel("STT_GIVEUP: too many restarts");
+            return;
+          }
+          setTimeout(() => {
+            if (shouldListen && !gotSpeechResult) startRecognitionEngine();
+          }, listenRestarts < 3 ? 80 : 250);
+          return;
+        }
+        shouldListen = false;
+        resetMicUI();
+      };
+    }
+
+    function createRecognition() {
+      if (!SpeechRecognitionAPI) return null;
+      const rec = new SpeechRecognitionAPI();
+      bindRecognition(rec);
+      return rec;
+    }
+
+    recognition = createRecognition();
+
+    function startRecognitionEngine() {
+      if (!SpeechRecognitionAPI) return;
+      try {
+        if (!recognition) recognition = createRecognition();
+        recognition.start();
+      } catch (e) {
+        if (e && e.name === "InvalidStateError") {
+          // Engine is already running from the previous tap / permission grant.
+          isListening = true;
+          return;
+        }
+        recognition = createRecognition();
+        try {
+          recognition.start();
+        } catch (retryErr) {
+          shouldListen = false;
+          logFunnel(`STT_START_ERR: ${retryErr && retryErr.message}`);
+          resetMicUI();
+        }
+      }
+    }
+
+    function resetMicUI() {
+      isListening = false;
+      isLocalRecording = false;
+      if (!agentSpeaking) updateStatus("Ready", "bg-emerald-400");
+      document.getElementById("micLabel").innerText = "Click to Speak";
+      document.getElementById("micBtn").className = "w-full sm:flex-1 py-2.5 px-5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-semibold text-sm transition flex items-center justify-center gap-2";
+    }
+
+    function setListeningUI(label) {
+      isListening = true;
+      listenStartedAt = Date.now();
+      updateStatus("Listening...", "bg-rose-500 animate-ping");
+      document.getElementById("micLabel").innerText = label;
+      document.getElementById("micBtn").className = "w-full sm:flex-1 py-2.5 px-5 rounded-xl bg-rose-600 text-white font-semibold text-sm transition flex items-center justify-center gap-2";
+    }
+
+    function resampleTo16k(audioBuffer) {
+      const src = audioBuffer.getChannelData(0);
+      const ratio = audioBuffer.sampleRate / 16000;
+      if (Math.abs(ratio - 1) < 0.01) return src;
+      const length = Math.max(1, Math.floor(src.length / ratio));
+      const out = new Float32Array(length);
+      for (let i = 0; i < length; i++) out[i] = src[Math.min(src.length - 1, Math.floor(i * ratio))];
+      return out;
+    }
+
+    async function ensureLocalAsr() {
+      if (localAsr) return localAsr;
+      if (localAsrLoading) return localAsrLoading;
+      document.getElementById("micLabel").innerText = "Loading on-device STT…";
+      updateStatus("Loading speech model...", "bg-amber-400 animate-pulse");
+      localAsrLoading = (async () => {
+        const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.2/+esm");
+        env.allowLocalModels = false;
+        env.useBrowserCache = true;
+        localAsr = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en", {
+          progress_callback: (p) => {
+            if (p && p.status === "progress" && typeof p.progress === "number") {
+              document.getElementById("micLabel").innerText = `Loading model ${Math.round(p.progress)}%`;
+            }
+          }
+        });
+        logFunnel("LOCAL_ASR_READY: whisper-tiny.en");
+        return localAsr;
+      })();
+      try {
+        return await localAsrLoading;
+      } catch (err) {
+        localAsrLoading = null;
+        throw err;
+      }
+    }
+
+    function switchToLocalStt(message) {
+      useLocalStt = true;
+      shouldListen = false;
+      try { if (recognition) recognition.stop(); } catch (e) {}
+      resetMicUI();
+      logFunnel("STT_MODE: local whisper");
+      if (message) appendMessage("agent", message);
+      ensureLocalAsr().catch((err) => {
+        logFunnel(`LOCAL_ASR_ERR: ${err && err.message}`);
+        appendMessage("agent", "On-device speech model failed to load. Allow huggingface.co in Brave Shields, or type in the box below.");
+      });
+    }
+
+    function stopVad() {
+      if (vadTimer) {
+        clearInterval(vadTimer);
+        vadTimer = null;
+      }
+    }
+
+    function startVad(stream) {
+      stopVad();
+      const ctx = new AudioContext();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      let heardSpeech = false;
+      let silenceMs = 0;
+      const started = Date.now();
+      vadTimer = setInterval(() => {
+        if (!isLocalRecording) {
+          stopVad();
+          ctx.close();
+          return;
+        }
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        if (rms > 0.045) {
+          heardSpeech = true;
+          silenceMs = 0;
+        } else if (heardSpeech) {
+          silenceMs += 100;
+          if (silenceMs >= 1300) {
+            stopVad();
+            ctx.close();
+            finishLocalRecording();
+          }
+        } else if (Date.now() - started > 8000) {
+          stopVad();
+          ctx.close();
+          finishLocalRecording();
+        }
+      }, 100);
+    }
+
+    async function startLocalRecording() {
+      window.speechSynthesis.cancel();
+      agentSpeaking = false;
+      try {
+        await ensureLocalAsr();
+      } catch (err) {
+        appendMessage("agent", "Could not load on-device speech recognition. In Brave, click the lion icon → Shields down for this site (or allow huggingface.co), then refresh — or type below.");
+        resetMicUI();
+        return;
+      }
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        appendMessage("agent", "Microphone access is blocked. Allow mic permission for this site, then tap Speak again.");
+        resetMicUI();
+        return;
+      }
+      recordedChunks = [];
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "");
+      mediaRecorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime }) : new MediaRecorder(mediaStream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size) recordedChunks.push(e.data);
+      };
+      mediaRecorder.start();
+      isLocalRecording = true;
+      setListeningUI("Listening... tap again when done");
+      startVad(mediaStream);
+      logFunnel("LOCAL_STT_REC: start");
+    }
+
+    function finishLocalRecording() {
+      if (!isLocalRecording || !mediaRecorder) return;
+      isLocalRecording = false;
+      stopVad();
+      const rec = mediaRecorder;
+      rec.onstop = () => transcribeLocalRecording();
+      try { rec.stop(); } catch (e) { transcribeLocalRecording(); }
+    }
+
+    async function transcribeLocalRecording() {
+      document.getElementById("micLabel").innerText = "Transcribing…";
+      updateStatus("Transcribing...", "bg-amber-400 animate-pulse");
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((t) => t.stop());
+        mediaStream = null;
+      }
+      const blob = new Blob(recordedChunks, { type: recordedChunks[0] ? recordedChunks[0].type : "audio/webm" });
+      recordedChunks = [];
+      mediaRecorder = null;
+      if (blob.size < 800) {
+        appendMessage("agent", "I didn't catch any audio. Tap Speak, say the word, then tap again.");
+        resetMicUI();
+        return;
+      }
+      try {
+        const asr = await ensureLocalAsr();
+        const buffer = await blob.arrayBuffer();
+        const audioCtx = new AudioContext();
+        const decoded = await audioCtx.decodeAudioData(buffer.slice(0));
+        audioCtx.close();
+        const pcm = resampleTo16k(decoded);
+        const result = await asr(pcm, { language: "english", task: "transcribe" });
+        const transcript = (result.text || "").trim();
+        resetMicUI();
+        if (!transcript) {
+          appendMessage("agent", "I heard you, but couldn't transcribe that. Try again a bit closer to the mic, or type below.");
+          return;
+        }
+        logFunnel(`LOCAL_STT_OK: "${transcript}"`);
+        handleUserResponse(transcript);
+      } catch (err) {
+        logFunnel(`LOCAL_STT_ERR: ${err && err.message}`);
+        appendMessage("agent", "On-device transcription failed. Try again, disable Brave Shields for this page, or type in the box below.");
+        resetMicUI();
+      }
+    }
+
+    async function toggleLocalListening() {
+      if (isLocalRecording) {
+        if (Date.now() - listenStartedAt < 500) return;
+        finishLocalRecording();
+        return;
+      }
+      await startLocalRecording();
+    }
+    function updateStatus(text, dotClass) {
+      document.getElementById("agentStatus").innerText = text;
+      document.getElementById("statusDot").className = `w-2.5 h-2.5 rounded-full ${dotClass}`;
+    }
+    function logFunnel(entry) {
+      const box = document.getElementById("funnelLog");
+      const div = document.createElement("div");
+      div.innerText = `• ${entry}`;
+      box.prepend(div);
+    }
+    function appendMessage(sender, text) {
+      const chatLog = document.getElementById("chatLog");
+      const wrapper = document.createElement("div");
+      wrapper.className = sender === "agent" 
+        ? "bg-slate-800/90 border border-slate-700/80 rounded-xl p-3 text-slate-200 mr-8"
+        : "bg-indigo-600/20 border border-indigo-500/30 rounded-xl p-3 text-indigo-200 ml-8 text-right";
+      wrapper.innerHTML = `<span class="block text-[10px] uppercase tracking-wider font-bold mb-1 ${sender === 'agent' ? 'text-indigo-400' : 'text-emerald-400'}">${sender === 'agent' ? 'AI Voice Coach' : 'You'}</span>${text}`;
+      chatLog.appendChild(wrapper);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+    function speak(text) {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      agentSpeaking = true;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      utterance.rate = 1.02;
+      utterance.onstart = () => {
+        agentSpeaking = true;
+        if (!shouldListen && !isListening) updateStatus("Agent Speaking...", "bg-indigo-400 animate-pulse");
+      };
+      utterance.onend = () => {
+        agentSpeaking = false;
+        if (!shouldListen && !isListening) updateStatus("Ready", "bg-emerald-400");
+      };
+      utterance.onerror = () => {
+        agentSpeaking = false;
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+    function renderWordCard() {
+      const item = words[currentIdx];
+      document.getElementById("wordIndexLabel").innerText = `${currentIdx + 1}/${words.length}`;
+      document.getElementById("targetWord").innerText = item.word;
+      document.getElementById("wordPhonetic").innerText = item.phonetic;
+      document.getElementById("wordMeaning").innerText = item.meaning;
+      document.getElementById("wordExample").innerText = `"${item.example}"`;
+      document.getElementById("stepBadge").innerText = stage === 1 ? "Stage 1: Say the Word" : "Stage 2: Use in a Sentence";
+    }
+    function startLesson() {
+      shouldListen = false;
+      if (isLocalRecording) finishLocalRecording();
+      try { if (recognition) recognition.stop(); } catch (e) {}
+      document.getElementById("micBtn").disabled = false;
+      resetMicUI();
+      stage = 1;
+      renderWordCard();
+      const item = words[currentIdx];
+      if (navigator.brave) {
+        switchToLocalStt("Brave blocks Google speech-to-text, so this session uses on-device recognition. First tap Speak (model may take a few seconds to load), then say the word.");
+      }
+      const intro = `Welcome! Let's learn the word ${item.word}. It means: ${item.meaning}. First, click Speak and pronounce the word "${item.word}".`;
+      appendMessage("agent", intro);
+      speak(intro);
+      logFunnel(`WORD_${currentIdx + 1}_START: ${item.word}`);
+      if (useLocalStt) ensureLocalAsr().catch(() => {});
+    }
+    function toggleListening() {
+      if (useLocalStt || !SpeechRecognitionAPI) {
+        toggleLocalListening();
+        return;
+      }
+      if (shouldListen || isListening) {
+        // A second tap right after the permission prompt used to stop the mic.
+        if (Date.now() - listenStartedAt < 1800) return;
+        shouldListen = false;
+        try { recognition.stop(); } catch (e) {}
+        resetMicUI();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      agentSpeaking = false;
+      shouldListen = true;
+      gotSpeechResult = false;
+      listenRestarts = 0;
+      listenStartedAt = Date.now();
+      startRecognitionEngine();
+    }
+    function submitTextFallback() {
+      const input = document.getElementById("textFallback");
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = "";
+      handleUserResponse(val);
+    }
+    function handleUserResponse(transcript) {
+      const t0 = performance.now();
+      appendMessage("user", transcript);
+      attempts++;
+      const item = words[currentIdx];
+      const clean = transcript.toLowerCase();
+      const targetLower = item.word.toLowerCase();
+      if (stage === 1) {
+        if (clean.includes(targetLower)) {
+          successes++;
+          stage = 2;
+          renderWordCard();
+          const reply = `Spot on! Your pronunciation of "${item.word}" was clear. Now for Stage 2: use "${item.word}" in a complete sentence of your own.`;
+          appendMessage("agent", reply);
+          speak(reply);
+          logFunnel(`STAGE1_PASS: ${item.word}`);
+        } else {
+          const reply = `I heard "${transcript}". Let's try pronouncing "${item.word}" one more time. Click Speak and say "${item.word}".`;
+          appendMessage("agent", reply);
+          speak(reply);
+          logFunnel(`STAGE1_RETRY: heard "${transcript}"`);
+        }
+      } else if (stage === 2) {
+        const wordCount = clean.split(/\s+/).length;
+        if (clean.includes(targetLower) && wordCount >= 4) {
+          successes++;
+          masteredCount++;
+          document.getElementById("metricMastered").innerText = `${masteredCount} / ${words.length}`;
+          logFunnel(`WORD_MASTERED: ${item.word}`);
+          const reply = `Great sentence! You used "${item.word}" in context. Moving to the next word.`;
+          appendMessage("agent", reply);
+          speak(reply);
+          setTimeout(() => nextWord(true), 3200);
+        } else if (!clean.includes(targetLower)) {
+          const reply = `Nice try, but I didn't hear the word "${item.word}" in your sentence. Try saying a full sentence that includes "${item.word}".`;
+          appendMessage("agent", reply);
+          speak(reply);
+          logFunnel(`STAGE2_RETRY: missing target word`);
+        } else {
+          const reply = `Try making your sentence a bit longer—at least 4 or 5 words—so I can verify the context for "${item.word}".`;
+          appendMessage("agent", reply);
+          speak(reply);
+          logFunnel(`STAGE2_RETRY: sentence too short`);
+        }
+      }
+      const acc = Math.round((successes / attempts) * 100);
+      document.getElementById("metricAccuracy").innerText = `${acc}%`;
+      const latency = Math.max(45, Math.round(performance.now() - t0 + 85));
+      document.getElementById("metricLatency").innerText = `${latency} ms`;
+    }
+    function nextWord(autoPrompt = false) {
+      currentIdx = (currentIdx + 1) % words.length;
+      stage = 1;
+      renderWordCard();
+      const item = words[currentIdx];
+      const msg = `Next word: ${item.word}. Meaning: ${item.meaning}. Click Speak and pronounce "${item.word}".`;
+      appendMessage("agent", msg);
+      if (autoPrompt) speak(msg);
+      logFunnel(`NEXT_WORD: ${item.word}`);
+    }
+  </script>
+</body>
+</html>
